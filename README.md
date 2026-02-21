@@ -20,13 +20,13 @@ A beautiful, offline-first screensaver that cycles through Quran verses, Bible v
 
 ## Getting Started
 
-Just open `screensaver.html` in any modern browser. No server, no install, no build step.
+Just open `index.html` in any modern browser. No server, no install, no build step.
 
 ```sh
 git clone https://github.com/XionDot/daily-light.git
 cd daily-light
-open screensaver.html   # macOS
-# or double-click screensaver.html on any OS
+open index.html   # macOS
+# or double-click index.html on any OS
 ```
 
 To unlock the full verse library (~37k verses), click **Download Full Library** inside the settings panel. Data is fetched once and stored locally — no repeated downloads.
@@ -52,7 +52,7 @@ To unlock the full verse library (~37k verses), click **Download Full Library** 
 
 ```text
 daily-light/
-├── screensaver.html   — Main UI and all logic
+├── index.html         — Main UI and all logic
 ├── data/
 │   ├── bible.js       — KJV verses from all 66 books
 │   ├── quran.js       — Sahih International verses from all 114 surahs (with Arabic)
