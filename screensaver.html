@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screensaver</title>
+  <!-- All data files — loaded as script tags so they work on file:// with no server -->
+  <script src="data/bible.js"></script>
+  <script src="data/quran.js"></script>
+  <script src="data/facts.js"></script>
+  <script src="data/quotes.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --text: #ffffff;
+      --sub: rgba(255,255,255,0.5);
+      --badge-bg: rgba(255,255,255,0.1);
+      --badge-border: rgba(255,255,255,0.18);
+      --panel-bg: rgba(8,8,15,0.82);
+      --panel-border: rgba(255,255,255,0.13);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: Georgia, 'Times New Roman', Times, serif;
+      cursor: none;
+    }
+
+    /* ── THEME: MINIMAL ── */
+    body.theme-minimal {
+      --text: #1a1a2e;
+      --sub: rgba(26,26,46,0.48);
+      --badge-bg: rgba(0,0,0,0.07);
+      --badge-border: rgba(0,0,0,0.14);
+      --panel-bg: rgba(245,244,239,0.95);
+      --panel-border: rgba(0,0,0,0.1);
+    }
+
+    /* ── BACKGROUNDS ── */
+    #bg { position: fixed; inset: 0; z-index: 0; }
+    body.theme-dark #bg    { background: #080812; }
+    body.theme-gradient #bg { background: #0b0b18; }
+    body.theme-minimal #bg  { background: #f4f3ee; }
+
+    /* STARS */
+    #stars {
+      position: fixed; inset: 0; z-index: 1;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.2s;
+    }
+    body.theme-dark #stars { opacity: 1; }
+
+    /* GRADIENT BLOBS */
+    #gradient-layer {
+      position: fixed; inset: 0; z-index: 1;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.2s;
+      overflow: hidden;
+    }
+    body.theme-gradient #gradient-layer { opacity: 1; }
+
+    .blob {
+      position: absolute; border-radius: 50%;
+      filter: blur(90px); opacity: 0.5;
+      animation: blobDrift 20s ease-in-out infinite alternate;
+    }
+    .b1 { width:55vw;height:55vw;background:#5500ee;top:-8%;left:-10%;animation-duration:22s; }
+    .b2 { width:45vw;height:45vw;background:#ee0060;top:42%;left:56%;animation-duration:18s;animation-delay:-7s; }
+    .b3 { width:38vw;height:38vw;background:#00aaff;top:58%;left:-4%;animation-duration:24s;animation-delay:-4s; }
+    .b4 { width:32vw;height:32vw;background:#ffaa00;top:-6%;left:62%;animation-duration:20s;animation-delay:-11s; }
+
+    @keyframes blobDrift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(5vw,6vh) scale(1.1); }
+    }
+
+    /* ── MAIN CARD ── */
+    #stage {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: clamp(24px, 6vw, 80px);
+      text-align: center;
+    }
+
+    #card {
+      max-width: min(840px, 88vw);
+      transition: opacity 0.85s ease, transform 0.85s ease;
+    }
+    #card.fading { opacity: 0; transform: translateY(14px); }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 5px 16px;
+      border-radius: 999px;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: var(--sub);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: clamp(10px, 1.1vw, 12px);
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      margin-bottom: 30px;
+      user-select: none;
+    }
+    .badge-dot { width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.75; }
+
+    #arabic-text {
+      color: var(--text);
+      font-family: 'Traditional Arabic', 'Arabic Typesetting', 'Simplified Arabic',
+                   'Noto Naskh Arabic', 'Amiri', 'Scheherazade', serif;
+      font-size: clamp(22px, 3.6vw, 52px);
+      line-height: 2;
+      direction: rtl;
+      font-style: normal;
+      font-weight: 400;
+      text-shadow: 0 2px 48px rgba(0,0,0,0.25);
+      margin-bottom: 18px;
+      display: none;
+    }
+    body.theme-minimal #arabic-text { text-shadow: none; }
+
+    #quote-text {
+      color: var(--text);
+      font-size: clamp(17px, 3vw, 40px);
+      line-height: 1.6;
+      font-style: italic;
+      font-weight: 400;
+      text-shadow: 0 2px 48px rgba(0,0,0,0.25);
+      margin-bottom: 26px;
+    }
+    body.theme-minimal #quote-text { text-shadow: none; }
+
+    #quote-ref {
+      color: var(--sub);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: clamp(12px, 1.3vw, 15px);
+      letter-spacing: 0.07em;
+      font-style: normal;
+    }
+
+    /* ── CLOCK ── */
+    #clock {
+      position: fixed; top: 26px; right: 32px; z-index: 20;
+      text-align: right; color: var(--sub);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      pointer-events: none;
+    }
+    #clock-time { font-size: clamp(22px,2.8vw,36px); font-weight:200; letter-spacing:.04em; line-height:1; }
+    #clock-date { font-size: clamp(10px,1.1vw,13px); letter-spacing:.1em; margin-top:4px; opacity:.65; }
+
+    /* ── POOL COUNTER ── */
+    #pool-count {
+      position: fixed; top: 26px; left: 32px; z-index: 20;
+      color: var(--sub);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px; letter-spacing: .08em;
+      pointer-events: none;
+    }
+
+    /* ── PROGRESS BAR ── */
+    #progress-bar {
+      position: fixed; bottom: 0; left: 0;
+      height: 2px; width: 0;
+      background: var(--text); opacity: 0.2;
+      z-index: 20;
+    }
+
+    /* ── CONTROLS ── */
+    #controls {
+      position: fixed; bottom: 22px; left: 26px; z-index: 30;
+      display: flex; gap: 8px; flex-wrap: wrap;
+      opacity: 0; transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    body.ui-active #controls { opacity: 1; pointer-events: auto; cursor: default; }
+    body.ui-active { cursor: default; }
+
+    .ctrl-btn {
+      padding: 6px 15px; border-radius: 999px;
+      background: var(--badge-bg); border: 1px solid var(--badge-border);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px; letter-spacing: .06em;
+      cursor: pointer;
+      transition: background 0.2s;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .ctrl-btn:hover, .ctrl-btn.active { background: var(--badge-border); }
+
+    /* ── OVERLAY PANELS (settings & help) ── */
+    .panel {
+      position: fixed; z-index: 50;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      min-width: 240px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      display: none;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    .panel.open { display: block; }
+    .panel h3 {
+      font-size: 10px; letter-spacing: .15em;
+      text-transform: uppercase; color: var(--sub);
+      margin-bottom: 16px;
+    }
+
+    /* SETTINGS */
+    #settings { bottom: 70px; left: 26px; }
+
+    .setting-group { margin-bottom: 18px; }
+    .setting-label {
+      display: block; font-size: 10px;
+      text-transform: uppercase; letter-spacing: .12em;
+      color: var(--sub); margin-bottom: 8px;
+    }
+    .theme-btns, .filter-row { display: flex; gap: 7px; flex-wrap: wrap; }
+    .theme-btn, .filter-btn, .script-btn {
+      padding: 5px 12px; border-radius: 999px;
+      border: 1px solid var(--badge-border);
+      background: var(--badge-bg); color: var(--text);
+      font-size: 11px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .theme-btn:hover,.filter-btn:hover,.script-btn:hover { background: var(--badge-border); }
+    .theme-btn.active,.filter-btn.active,.script-btn.active { background: rgba(255,255,255,0.22); }
+    body.theme-minimal .theme-btn.active,
+    body.theme-minimal .filter-btn.active,
+    body.theme-minimal .script-btn.active { background: rgba(0,0,0,0.15); }
+
+    .interval-row { display: flex; align-items: center; gap: 10px; }
+    .interval-row input[type=range] { flex:1; accent-color:#888; }
+    .interval-val { font-size:11px; color:var(--sub); min-width:28px; text-align:right; }
+
+    /* ── HELP MODAL ── */
+    #help {
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 320px; max-width: 420px; width: 90%;
+    }
+    #help h3 { margin-bottom: 18px; }
+
+    .shortcut-table { width: 100%; border-collapse: collapse; }
+    .shortcut-table tr + tr td { border-top: 1px solid var(--panel-border); }
+    .shortcut-table td {
+      padding: 7px 4px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .shortcut-table td:first-child {
+      color: var(--sub);
+      white-space: nowrap;
+      padding-right: 18px;
+      font-family: 'Courier New', Courier, monospace;
+      letter-spacing: .02em;
+    }
+
+    /* ── DOWNLOAD PROMPT ── */
+    #dl-prompt {
+      position: fixed; bottom: 70px; right: 26px;
+      z-index: 50; max-width: 300px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px; padding: 18px 20px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 12px; line-height: 1.6;
+      display: none;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    #dl-prompt.open { display: block; }
+    #dl-prompt p { margin-bottom: 12px; }
+    #dl-prompt p strong { display: block; margin-bottom: 4px; letter-spacing: .06em; }
+    #dl-prompt .dl-note { font-size: 10px; color: var(--sub); margin-bottom: 14px; }
+    .dl-btns { display: flex; gap: 8px; }
+    .dl-btn {
+      flex: 1; padding: 7px 10px; border-radius: 8px;
+      border: 1px solid var(--badge-border);
+      background: var(--badge-bg); color: var(--text);
+      font-size: 11px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .dl-btn:hover { background: var(--badge-border); }
+    .dl-btn.primary { background: rgba(255,255,255,0.18); font-weight: 600; }
+    body.theme-minimal .dl-btn.primary { background: rgba(0,0,0,0.12); }
+
+    /* STATUS PILL */
+    #status {
+      position: fixed; bottom: 22px; right: 26px; z-index: 20;
+      color: var(--sub);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10px; letter-spacing: .08em;
+      opacity: 0; transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    #status.visible { opacity: 1; }
+
+    /* ── DOWNLOAD PROGRESS OVERLAY ── */
+    #dl-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+    #dl-overlay.open { display: flex; }
+    #dl-box {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px; padding: 32px 36px;
+      min-width: 300px; text-align: center;
+      color: var(--text);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    #dl-box p { font-size: 14px; margin-bottom: 16px; }
+    #dl-progress-bar {
+      width: 100%; height: 4px;
+      background: var(--badge-border); border-radius: 2px;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    #dl-progress-fill {
+      height: 100%; background: var(--text);
+      border-radius: 2px;
+      transition: width 0.4s;
+      width: 0;
+    }
+    #dl-progress-label { font-size: 11px; color: var(--sub); }
+  </style>
+</head>
+<body class="theme-dark">
+
+<!-- Backgrounds -->
+<div id="bg"></div>
+<canvas id="stars"></canvas>
+<div id="gradient-layer">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="blob b4"></div>
+</div>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- Clock -->
+<div id="clock">
+  <div id="clock-time"></div>
+  <div id="clock-date"></div>
+</div>
+
+<!-- Pool counter -->
+<div id="pool-count"></div>
+
+<!-- Main card -->
+<div id="stage">
+  <div id="card">
+    <div class="badge"><span class="badge-dot"></span><span id="badge-label">—</span></div>
+    <div id="arabic-text"></div>
+    <div id="quote-text"></div>
+    <div id="quote-ref"></div>
+  </div>
+</div>
+
+<!-- Controls (hover to reveal) -->
+<div id="controls">
+  <button class="ctrl-btn" id="btn-prev">&#8592; Prev</button>
+  <button class="ctrl-btn" id="btn-next">Next &#8594;</button>
+  <button class="ctrl-btn" id="btn-pause">&#9646;&#9646; Pause</button>
+  <button class="ctrl-btn" id="btn-settings">&#9881; Settings</button>
+  <button class="ctrl-btn" id="btn-help">? Help</button>
+  <button class="ctrl-btn" id="btn-fs">&#x26F6; Full</button>
+  <button class="ctrl-btn" id="btn-dl">&#8659; All Verses</button>
+</div>
+
+<!-- Status pill -->
+<div id="status"></div>
+
+<!-- SETTINGS PANEL -->
+<div class="panel" id="settings">
+  <h3>Settings</h3>
+
+  <div class="setting-group">
+    <span class="setting-label">Theme</span>
+    <div class="theme-btns">
+      <button class="theme-btn active" data-theme="dark">Dark</button>
+      <button class="theme-btn" data-theme="gradient">Gradient</button>
+      <button class="theme-btn" data-theme="minimal">Minimal</button>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <span class="setting-label">Interval</span>
+    <div class="interval-row">
+      <input type="range" id="interval-range" min="5" max="60" value="12" step="1" />
+      <span class="interval-val" id="interval-val">12s</span>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <span class="setting-label">Show</span>
+    <div class="filter-row">
+      <button class="filter-btn active" data-cat="bible">Bible</button>
+      <button class="filter-btn active" data-cat="quran">Quran</button>
+      <button class="filter-btn active" data-cat="fact">Facts</button>
+      <button class="filter-btn active" data-cat="quote">Quotes</button>
+    </div>
+  </div>
+
+  <div class="setting-group" id="quran-script-group">
+    <span class="setting-label">Quran Script</span>
+    <div class="theme-btns">
+      <button class="script-btn" data-script="arabic">Arabic</button>
+      <button class="script-btn active" data-script="both">Both</button>
+      <button class="script-btn" data-script="english">English</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP PANEL -->
+<div class="panel" id="help">
+  <h3>Keyboard Shortcuts</h3>
+  <table class="shortcut-table">
+    <tr><td>→ / Space</td><td>Next item</td></tr>
+    <tr><td>←</td><td>Previous item</td></tr>
+    <tr><td>P</td><td>Pause / Resume</td></tr>
+    <tr><td>F</td><td>Toggle fullscreen</td></tr>
+    <tr><td>S</td><td>Open / close settings</td></tr>
+    <tr><td>? / H</td><td>Show / hide this help</td></tr>
+    <tr><td>1</td><td>Dark theme</td></tr>
+    <tr><td>2</td><td>Gradient theme</td></tr>
+    <tr><td>3</td><td>Minimal theme</td></tr>
+    <tr><td>Esc</td><td>Close any open panel</td></tr>
+    <tr><td>Click</td><td>Next item (anywhere on screen)</td></tr>
+  </table>
+</div>
+
+<!-- DOWNLOAD PROMPT -->
+<div id="dl-prompt">
+  <p>
+    <strong>Download all 37,000+ verses?</strong>
+    Fetches the complete Bible &amp; Quran from free public servers — one time only, then cached forever.
+  </p>
+  <p class="dl-note">Servers contacted: api.alquran.cloud &amp; cdn.jsdelivr.net<br>No account or login required. Your IP may be logged by those servers.</p>
+  <div class="dl-btns">
+    <button class="dl-btn" id="btn-dl-cancel">Cancel</button>
+    <button class="dl-btn primary" id="btn-dl-confirm">Download</button>
+  </div>
+</div>
+
+<!-- DOWNLOAD PROGRESS OVERLAY -->
+<div id="dl-overlay">
+  <div id="dl-box">
+    <p id="dl-box-label">Downloading…</p>
+    <div id="dl-progress-bar"><div id="dl-progress-fill"></div></div>
+    <div id="dl-progress-label" id="dl-label"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONTENT POOL
+// ═══════════════════════════════════════════════════════
+const CATS = { bible:'Bible', quran:'Quran', fact:'Fact', quote:'Quote' };
+
+function makeItems(cat, arr) {
+  return arr.map(x => {
+    if (typeof x === 'string') return { cat, text: x, ref: 'Interesting Fact' };
+    // Quran has {t, ar, r}; Bible has {t, r}; Quote has {t, a} (a = author)
+    if (x.t && x.r)  return { cat, text: x.t, arabic: x.ar || null, ref: x.r };
+    if (x.t && x.a)  return { cat, text: `"${x.t}"`, ref: `— ${x.a}` }; // quote
+    return { cat, text: String(x), ref: '' };
+  });
+}
+
+// Tier-1 built-in items (from script tags)
+const BUILTIN = [
+  ...makeItems('bible',  window.BIBLE_DATA  || []),
+  ...makeItems('quran',  window.QURAN_DATA  || []),
+  ...makeItems('fact',   window.FACTS_DATA  || []),
+  ...makeItems('quote',  window.QUOTES_DATA || []),
+];
+
+let pool = [];
+let activeCategories = new Set(['bible','quran','fact','quote']);
+let idx = 0;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function buildPool() {
+  pool = shuffle(BUILTIN.filter(x => activeCategories.has(x.cat)));
+  idx = 0;
+  updateCounter();
+}
+
+function addItems(newItems) {
+  // Append new items (from full download) shuffled into current pool
+  const filtered = newItems.filter(x => activeCategories.has(x.cat));
+  const merged = shuffle([...pool.slice(idx), ...filtered]);
+  pool = [...pool.slice(0, idx + 1), ...merged];
+  updateCounter();
+}
+
+function updateCounter() {
+  document.getElementById('pool-count').textContent =
+    pool.length.toLocaleString() + ' items';
+}
+
+// ═══════════════════════════════════════════════════════
+//  QURAN SCRIPT PREFERENCE
+// ═══════════════════════════════════════════════════════
+let quranScript = 'both'; // 'arabic' | 'both' | 'english'
+
+function setQuranScript(mode) {
+  quranScript = mode;
+  document.querySelectorAll('.script-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.script === mode));
+  try { localStorage.setItem('ss-quran-script', mode); } catch(_) {}
+  // Re-render current item if it's a Quran item
+  if (pool.length && pool[idx].cat === 'quran') showItem(pool[idx]);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DISPLAY
+// ═══════════════════════════════════════════════════════
+function showItem(item) {
+  const card = document.getElementById('card');
+  card.classList.add('fading');
+  setTimeout(() => {
+    document.getElementById('badge-label').textContent = CATS[item.cat] || item.cat;
+
+    const arabicEl = document.getElementById('arabic-text');
+    const engEl    = document.getElementById('quote-text');
+
+    if (item.cat === 'quran' && item.arabic) {
+      arabicEl.textContent = item.arabic;
+      if (quranScript === 'arabic') {
+        arabicEl.style.display = 'block';
+        engEl.style.display    = 'none';
+      } else if (quranScript === 'english') {
+        arabicEl.style.display = 'none';
+        engEl.style.display    = 'block';
+        engEl.textContent      = item.text;
+      } else { // both
+        arabicEl.style.display = 'block';
+        engEl.style.display    = 'block';
+        engEl.textContent      = item.text;
+      }
+    } else {
+      arabicEl.style.display = 'none';
+      engEl.style.display    = 'block';
+      engEl.textContent      = item.text;
+    }
+
+    document.getElementById('quote-ref').textContent = item.ref;
+    card.classList.remove('fading');
+  }, 500);
+}
+
+function next(manual = false) {
+  if (!pool.length) return;
+  idx = (idx + 1) % pool.length;
+  showItem(pool[idx]);
+  if (!manual) resetProgress();
+}
+
+function prev() {
+  if (!pool.length) return;
+  idx = (idx - 1 + pool.length) % pool.length;
+  showItem(pool[idx]);
+  resetProgress();
+}
+
+// ═══════════════════════════════════════════════════════
+//  TIMER & PROGRESS
+// ═══════════════════════════════════════════════════════
+let intervalSecs = 12;
+let paused = false;
+let timerID = null;
+const bar = document.getElementById('progress-bar');
+
+function startTimer() {
+  clearInterval(timerID);
+  if (!paused) timerID = setInterval(() => next(false), intervalSecs * 1000);
+}
+
+function resetProgress() {
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  if (!paused) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bar.style.transition = `width ${intervalSecs}s linear`;
+      bar.style.width = '100%';
+    }));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  STARS (canvas)
+// ═══════════════════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const n = Math.floor(canvas.width * canvas.height / 3800);
+    stars = Array.from({length: n}, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.2 + 0.2,
+      a: Math.random() * 0.65 + 0.1,
+      spd: Math.random() * 0.4 + 0.08,
+      ph: Math.random() * Math.PI * 2,
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const t = Date.now() / 1000;
+    for (const s of stars) {
+      const a = s.a * (0.7 + 0.3 * Math.sin(t * s.spd + s.ph));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+})();
+
+// ═══════════════════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════════════════
+function tickClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('clock-time').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('clock-date').textContent =
+    `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ═══════════════════════════════════════════════════════
+//  THEME
+// ═══════════════════════════════════════════════════════
+function setTheme(t) {
+  document.body.classList.remove('theme-dark','theme-gradient','theme-minimal');
+  document.body.classList.add('theme-' + t);
+  document.querySelectorAll('.theme-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.theme === t));
+  try { localStorage.setItem('ss-theme', t); } catch(_){}
+}
+
+// ═══════════════════════════════════════════════════════
+//  PANELS
+// ═══════════════════════════════════════════════════════
+let settingsOpen = false, helpOpen = false, dlPromptOpen = false;
+
+function closeAll() {
+  document.getElementById('settings').classList.remove('open');
+  document.getElementById('help').classList.remove('open');
+  document.getElementById('dl-prompt').classList.remove('open');
+  settingsOpen = helpOpen = dlPromptOpen = false;
+  document.getElementById('btn-settings').classList.remove('active');
+  document.getElementById('btn-help').classList.remove('active');
+}
+
+function toggleSettings() {
+  const was = settingsOpen;
+  closeAll();
+  if (!was) {
+    settingsOpen = true;
+    document.getElementById('settings').classList.add('open');
+    document.getElementById('btn-settings').classList.add('active');
+  }
+}
+
+function toggleHelp() {
+  const was = helpOpen;
+  closeAll();
+  if (!was) {
+    helpOpen = true;
+    document.getElementById('help').classList.add('open');
+    document.getElementById('btn-help').classList.add('active');
+  }
+}
+
+function toggleDlPrompt() {
+  const was = dlPromptOpen;
+  closeAll();
+  if (!was) {
+    dlPromptOpen = true;
+    document.getElementById('dl-prompt').classList.add('open');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS CONTROLS
+// ═══════════════════════════════════════════════════════
+document.querySelectorAll('.theme-btn').forEach(btn =>
+  btn.addEventListener('click', () => setTheme(btn.dataset.theme))
+);
+
+const rangeEl = document.getElementById('interval-range');
+rangeEl.addEventListener('input', () => {
+  intervalSecs = +rangeEl.value;
+  document.getElementById('interval-val').textContent = intervalSecs + 's';
+  startTimer(); resetProgress();
+});
+
+document.querySelectorAll('.script-btn').forEach(btn =>
+  btn.addEventListener('click', () => setQuranScript(btn.dataset.script))
+);
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cat = btn.dataset.cat;
+    if (activeCategories.has(cat)) {
+      if (activeCategories.size > 1) {
+        activeCategories.delete(cat);
+        btn.classList.remove('active');
+      }
+    } else {
+      activeCategories.add(cat);
+      btn.classList.add('active');
+    }
+    buildPool();
+    if (pool.length) showItem(pool[idx]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+//  BUTTONS
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-next').addEventListener('click', () => { next(true); startTimer(); resetProgress(); });
+document.getElementById('btn-prev').addEventListener('click', () => { prev(); startTimer(); });
+document.getElementById('btn-settings').addEventListener('click', toggleSettings);
+document.getElementById('btn-help').addEventListener('click', toggleHelp);
+document.getElementById('btn-dl').addEventListener('click', toggleDlPrompt);
+
+document.getElementById('btn-pause').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('btn-pause').textContent = paused ? '▶ Resume' : '⏸ Pause';
+  if (paused) {
+    clearInterval(timerID);
+    bar.style.transition = 'none';
+  } else {
+    startTimer(); resetProgress();
+  }
+});
+
+document.getElementById('btn-fs').addEventListener('click', () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+});
+
+// ── DOWNLOAD PROMPT BUTTONS ──
+document.getElementById('btn-dl-cancel').addEventListener('click', closeAll);
+document.getElementById('btn-dl-confirm').addEventListener('click', () => {
+  closeAll();
+  runFullDownload();
+});
+
+// ── CLICK STAGE TO ADVANCE ──
+document.getElementById('stage').addEventListener('click', () => {
+  closeAll();
+  next(true); startTimer(); resetProgress();
+});
+
+// ═══════════════════════════════════════════════════════
+//  KEYBOARD
+// ═══════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { next(true); startTimer(); resetProgress(); }
+  else if (e.key === 'ArrowLeft') { prev(); startTimer(); }
+  else if (e.key === 'p' || e.key === 'P') document.getElementById('btn-pause').click();
+  else if (e.key === 'f' || e.key === 'F') document.getElementById('btn-fs').click();
+  else if (e.key === 's' || e.key === 'S') toggleSettings();
+  else if (e.key === '?' || e.key === 'h' || e.key === 'H') toggleHelp();
+  else if (e.key === '1') setTheme('dark');
+  else if (e.key === '2') setTheme('gradient');
+  else if (e.key === '3') setTheme('minimal');
+  else if (e.key === 'Escape') closeAll();
+});
+
+// ═══════════════════════════════════════════════════════
+//  INDEXEDDB (stores full downloaded verses + prefs)
+// ═══════════════════════════════════════════════════════
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('screensaver-v2', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('cache')) d.createObjectStore('cache');
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+function dbGet(key) {
+  return new Promise((resolve) => {
+    if (!db) return resolve(null);
+    try {
+      const req = db.transaction('cache','readonly').objectStore('cache').get(key);
+      req.onsuccess = e => resolve(e.target.result ?? null);
+      req.onerror = () => resolve(null);
+    } catch(_) { resolve(null); }
+  });
+}
+
+function dbSet(key, val) {
+  if (!db) return;
+  try {
+    const tx = db.transaction('cache','readwrite');
+    tx.objectStore('cache').put(val, key);
+  } catch(_) {}
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATUS MESSAGE
+// ═══════════════════════════════════════════════════════
+let statusTimer = null;
+function showStatus(msg, duration = 3000) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.classList.remove('visible'), duration);
+}
+
+// ═══════════════════════════════════════════════════════
+//  FULL DOWNLOAD (opt-in)
+// ═══════════════════════════════════════════════════════
+function setDlProgress(pct, label) {
+  document.getElementById('dl-progress-fill').style.width = pct + '%';
+  document.getElementById('dl-progress-label').textContent = label;
+}
+
+async function runFullDownload() {
+  const overlay = document.getElementById('dl-overlay');
+  overlay.classList.add('open');
+
+  try {
+    // ── QURAN (all 6,236 verses) ──
+    document.getElementById('dl-box-label').textContent = 'Downloading Quran…';
+    setDlProgress(5, 'Contacting api.alquran.cloud');
+
+    const qRes = await fetch('https://api.alquran.cloud/v1/quran/en.sahih');
+    if (!qRes.ok) throw new Error('Quran API error: ' + qRes.status);
+    const qJson = await qRes.json();
+    setDlProgress(40, 'Parsing Quran…');
+
+    // Parse in chunks to avoid jank
+    const qItems = [];
+    const surahs = qJson.data.surahs;
+    for (let i = 0; i < surahs.length; i++) {
+      const s = surahs[i];
+      for (const a of s.ayahs) {
+        qItems.push({ cat:'quran', text: a.text, ref: `${s.englishName} ${s.number}:${a.numberInSurah}` });
+      }
+      if (i % 20 === 0) {
+        setDlProgress(40 + Math.floor((i / surahs.length) * 10), `Parsed ${qItems.length} Quran verses…`);
+        await new Promise(r => setTimeout(r, 0)); // yield
+      }
+    }
+    dbSet('quran-full', qItems);
+    dbSet('quran-ts', Date.now());
+    setDlProgress(50, `${qItems.length} Quran verses saved`);
+
+    // ── BIBLE (all 31,102 verses KJV) ──
+    document.getElementById('dl-box-label').textContent = 'Downloading Bible…';
+    setDlProgress(55, 'Contacting cdn.jsdelivr.net');
+
+    const bRes = await fetch('https://cdn.jsdelivr.net/gh/thiagobodruk/bible@master/api/en_kjv.json');
+    if (!bRes.ok) throw new Error('Bible CDN error: ' + bRes.status);
+    const bJson = await bRes.json();
+    setDlProgress(75, 'Parsing Bible…');
+
+    const bItems = [];
+    for (let bi = 0; bi < bJson.length; bi++) {
+      const book = bJson[bi];
+      for (let ci = 0; ci < book.chapters.length; ci++) {
+        const ch = book.chapters[ci];
+        for (let vi = 0; vi < ch.length; vi++) {
+          bItems.push({ cat:'bible', text: ch[vi], ref: `${book.name} ${ci+1}:${vi+1}` });
+        }
+      }
+      if (bi % 5 === 0) {
+        setDlProgress(75 + Math.floor((bi / bJson.length) * 20), `Parsed ${bItems.length} Bible verses…`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+    dbSet('bible-full', bItems);
+    dbSet('bible-ts', Date.now());
+    setDlProgress(100, `${bItems.length} Bible verses saved`);
+
+    // Add all to pool
+    addItems([...qItems, ...bItems]);
+
+    document.getElementById('dl-box-label').textContent =
+      `Done! ${(qItems.length + bItems.length).toLocaleString()} verses added.`;
+    setTimeout(() => {
+      overlay.classList.remove('open');
+      showStatus(`${(qItems.length + bItems.length).toLocaleString()} verses loaded.`, 4000);
+    }, 1800);
+
+  } catch (err) {
+    document.getElementById('dl-box-label').textContent = 'Download failed: ' + err.message;
+    document.getElementById('dl-progress-label').textContent = 'Check your internet connection and try again.';
+    setTimeout(() => overlay.classList.remove('open'), 3000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+async function init() {
+  // Restore preferences
+  try {
+    const savedTheme = localStorage.getItem('ss-theme');
+    if (savedTheme) setTheme(savedTheme);
+    const savedScript = localStorage.getItem('ss-quran-script');
+    if (savedScript) setQuranScript(savedScript);
+  } catch(_) {}
+
+  // Build pool from built-in data immediately
+  buildPool();
+  if (pool.length) showItem(pool[idx]);
+  startTimer();
+  resetProgress();
+
+  // Open IndexedDB and load any previously downloaded full datasets
+  try {
+    db = await openDB();
+
+    const [qCached, bCached] = await Promise.all([dbGet('quran-full'), dbGet('bible-full')]);
+
+    if (qCached && bCached) {
+      // Already downloaded — load silently
+      showStatus(`Loaded ${(qCached.length + bCached.length).toLocaleString()} cached verses.`, 3000);
+      addItems([...qCached, ...bCached]);
+    }
+  } catch(e) {
+    console.warn('IndexedDB unavailable:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTO-HIDE CONTROLS
+// ═══════════════════════════════════════════════════════
+let idleTimer = null;
+const IDLE_MS = 3000;
+
+function showUI() {
+  document.body.classList.add('ui-active');
+  clearTimeout(idleTimer);
+  // Keep visible while a panel is open
+  const anyOpen = settingsOpen || helpOpen || dlPromptOpen;
+  if (!anyOpen) {
+    idleTimer = setTimeout(() => document.body.classList.remove('ui-active'), IDLE_MS);
+  }
+}
+
+document.addEventListener('mousemove', showUI);
+document.addEventListener('mousedown', showUI);
+document.addEventListener('keydown',   showUI);
+
+init();
+</script>
+</body>
+</html>
