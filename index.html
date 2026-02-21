@@ -456,7 +456,7 @@
     <strong>Download all 37,000+ verses?</strong>
     Fetches the complete Bible &amp; Quran from free public servers — one time only, then cached forever.
   </p>
-  <p class="dl-note">Servers contacted: api.alquran.cloud &amp; cdn.jsdelivr.net<br>No account or login required. Your IP may be logged by those servers.</p>
+  <p class="dl-note">Servers contacted: api.alquran.cloud &amp; raw.githubusercontent.com<br>No account or login required. Your IP may be logged by those servers.</p>
   <div class="dl-btns">
     <button class="dl-btn" id="btn-dl-cancel">Cancel</button>
     <button class="dl-btn primary" id="btn-dl-confirm">Download</button>
@@ -967,26 +967,35 @@ async function runFullDownload() {
 
     // ── BIBLE (all 31,102 verses KJV) ──
     document.getElementById('dl-box-label').textContent = 'Downloading Bible…';
-    setDlProgress(55, 'Contacting cdn.jsdelivr.net');
+    setDlProgress(55, 'Fetching book list…');
 
-    const bRes = await fetch('https://cdn.jsdelivr.net/gh/thiagobodruk/bible@master/api/en_kjv.json');
-    if (!bRes.ok) throw new Error('Bible CDN error: ' + bRes.status);
-    const bJson = await bRes.json();
-    setDlProgress(75, 'Parsing Bible…');
+    const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master/';
+    const booksRes = await fetch(BASE + 'Books.json');
+    if (!booksRes.ok) throw new Error('Bible fetch error: ' + booksRes.status);
+    const bookNames = await booksRes.json(); // ["Genesis","Exodus",…]
 
     const bItems = [];
-    for (let bi = 0; bi < bJson.length; bi++) {
-      const book = bJson[bi];
-      for (let ci = 0; ci < book.chapters.length; ci++) {
-        const ch = book.chapters[ci];
-        for (let vi = 0; vi < ch.length; vi++) {
-          bItems.push({ cat:'bible', text: ch[vi], ref: `${book.name} ${ci+1}:${vi+1}` });
+    const BATCH = 10;
+    for (let start = 0; start < bookNames.length; start += BATCH) {
+      const batch = bookNames.slice(start, start + BATCH);
+      const jsons = await Promise.all(
+        batch.map(name =>
+          fetch(BASE + encodeURIComponent(name) + '.json').then(r => r.ok ? r.json() : null)
+        )
+      );
+      for (const bJson of jsons) {
+        if (!bJson) continue;
+        for (const ch of bJson.chapters) {
+          for (const v of ch.verses) {
+            bItems.push({ cat:'bible', text: v.text, ref: `${bJson.book} ${ch.chapter}:${v.verse}` });
+          }
         }
       }
-      if (bi % 5 === 0) {
-        setDlProgress(75 + Math.floor((bi / bJson.length) * 20), `Parsed ${bItems.length} Bible verses…`);
-        await new Promise(r => setTimeout(r, 0));
-      }
+      setDlProgress(
+        55 + Math.floor(((start + BATCH) / bookNames.length) * 40),
+        `Parsed ${bItems.length} Bible verses…`
+      );
+      await new Promise(r => setTimeout(r, 0));
     }
     dbSet('bible-full', bItems);
     dbSet('bible-ts', Date.now());
